@@ -12,6 +12,8 @@
 
 Last updated for v1.2.2
 
+__NOTE:__ Model calls are now outdated. See ./ggs2/models.py to update model calls!!!
+
 ## Overview and Purpose
 
 This README will cover the installation of the Glider Guidance System 2 (GGS2) and all of its dependencies. For documentation on the use of the GGS2, refer to `_docs/GGS2_Tutorial.md`.
