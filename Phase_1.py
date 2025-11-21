@@ -3,7 +3,7 @@ import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt 
 # ---- CONFIG ----
-NC_FILE = "/home/ps1532/ggs3/GGS3/products/2025_11_15/data/test_mission_2025111500_ESPC_dac.nc"  
+NC_FILE = # Path to guidance system netcdf created through save data toggle in config   
 VG = 0.40     # adjust to reflect glider speed                
 
 # ---- LOAD DATA FROM NETCDF ----
@@ -28,7 +28,7 @@ print(f"  depth-avg v_raw (north+ / south-): {v_raw:.3f} m/s")
 print(f"  track_cross u_perp:                {u_perp_here:.3f} m/s\n")
 
 # CSV read
-Mission_path = "/home/ps1532/ggs3/GGS3/products/2025_08_08_pathfinding_output/data/test_mission_20250802_ESPC_mission_path.csv"
+Mission_path = # Path to the mission path csv created by guidance system containing everything psuedo surfacing and positional info
 path_df=pd.read_csv(Mission_path)
 path_lon=path_df["lon"].to_numpy()
 path_lat=path_df["lat"].to_numpy()
@@ -103,11 +103,9 @@ print()
 print("Top 10 segments by |drift_km|:")
 print(df.reindex(df["drift_km"].abs().sort_values(ascending=False).index).head(10))
 
-# Optionally save to CSV for inspection
-# df.to_csv("phase1_drift_summary.csv", index=False)
-# print("\nSaved summary to phase1_drift_summary.csv")
 df = pd.DataFrame.from_records(records)
 # ---- DEBUG: look at the meander window ----
+# Select a region with an easily identifyable meander to verify north/soth drift points 
 mask = (df["lon_mid"] > -66.5) & (df["lon_mid"] < -65.0)
 df_slice = df[mask].sort_values("lon_mid")
 
@@ -123,14 +121,6 @@ print(df.head())
 
 print("\nDrift / ratio summary:")
 print(df[["drift_km", "R", "T_hours"]].describe())
-
-# Sort by |drift_km| to see the worst segments
-df_sorted = df.reindex(df["drift_km"].abs().sort_values(ascending=False).index)
-
-print("\nTop 10 segments by |drift_km|:")
-print(df_sorted.head(10)[
-    ["seg_index", "L_km", "drift_km", "R", "T_hours", "lon_mid", "lat_mid"]
-])
 
 # ---- FLAG SEGMENTS BY SEVERITY (TWEAK THRESHOLDS AS YOU LIKE) ----
 df["flag"] = "ok"
