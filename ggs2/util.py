@@ -24,7 +24,7 @@ def read_config(config_name: str) -> dict:
             The contents of the config file as a dictionary.
     """
     try:
-        with open(f"config/{config_name}.json", "r") as f:
+        with open(config_name, "r") as f:
             return json.load(f)
     except FileNotFoundError:
         print(f"Config file '{config_name}.json' not found.")

@@ -5,6 +5,8 @@
 import numpy as np
 import xarray as xr
 import xesmf as xe
+import pandas as pd
+import os
 
 from dask.diagnostics import ProgressBar
 from datetime import date
@@ -20,7 +22,7 @@ from .util import (
 )
 from .models import CMEMS, ESPC
 from .pathfinding import *
-
+from .drift import estimate_segment_drift
 
 """
 Section 1: Individual Model Processing Functions
@@ -200,6 +202,41 @@ def calculate_magnitude(model: object, diag_text: bool = True) -> xr.Dataset:
 
     return data
 
+### major test block
+
+def _bearing_AB(latA, lonA, latB, lonB):
+    dlon = np.deg2rad(lonB - lonA)
+    latA_rad, latB_rad = np.deg2rad(latA), np.deg2rad(latB)
+    y = np.sin(dlon) * np.cos(latB_rad)
+    x = np.cos(latA_rad)*np.sin(latB_rad) - np.sin(latA_rad)*np.cos(latB_rad)*np.cos(dlon)
+    return (np.degrees(np.arctan2(y, x)) + 360.0) % 360.0  # 0°=N, 90°=E
+
+def calculate_along_cross(model: object, bearing_deg: float, name: str = "track", diag_text: bool = True) -> xr.Dataset:
+    #Adds {name}_along and {name}_cross to model.da_data from u,v and a compass bearing.
+    if diag_text:
+        print(f"Calculating {name}_along/{name}_cross...", end=" ")
+    data: xr.Dataset = model.da_data
+
+    if "u" not in data or "v" not in data:
+        raise ValueError("Expected 'u' and 'v' in depth-averaged data (model.da_data).")
+
+    th = np.deg2rad(bearing_deg)          # 0°=N, 90°=E
+    s, c = np.sin(th), np.cos(th)
+    # along = u*sin(th) + v*cos(th)  (positive toward bearing)
+    along = data["u"] * s + data["v"] * c
+    # cross = u*cos(th) - v*sin(th)  (left-positive, 90° CCW from bearing)
+    cross = data["u"] * c - data["v"] * s
+
+    data['track_along']=along
+    data['track_cross']=cross
+    model.track_along=along
+    model.track_cross=cross
+
+    model.da_data = data.assign({f"{name}_along": along, f"{name}_cross": cross})
+    if diag_text:
+        print("Done.")
+    return model.da_data
+### End block
 
 def calculate_heading(model: object, diag_text: bool = False) -> xr.Dataset:
     """
@@ -615,6 +652,11 @@ def process_individual_model(
     mission_name: str = None,
     save: bool = False,
 ) -> None:
+    
+    dir='products/2025_08_08_pathfinding_output/data'
+    os.makedirs(dir,exist_ok=True)
+    if glider_speed is None:
+        glider_speed=0.40 
     """
     Processes individual model data. Assigns regridded subset data,
     1 meter interval interpolated data, & depth averaged to model class attributes.
@@ -657,20 +699,34 @@ def process_individual_model(
     model.da_data = depth_average(model, diag_text=False)
     model.da_data = calculate_magnitude(model, diag_text=False)
     model.da_data = calculate_heading(model, diag_text=False)
-    with ProgressBar(minimum=1):
-        # TODO: would it be faster for A* to be computed with it loaded?
-        model.da_data = model.da_data.compute()
+## second test block
+    if hasattr(model, "waypoints") and model.waypoints and len(model.waypoints) >= 2:
+        latA, lonA = model.waypoints[0]
+        latB, lonB = model.waypoints[-1]   # overall mission direction
+        bearing = _bearing_AB(latA, lonA, latB, lonB)
+    else:
+        bearing = 90.0  # default if no waypoints (0°=N, 90°=E)
 
+    model.da_data = calculate_along_cross(
+        model,
+        bearing_deg=bearing,
+        name="track",
+        diag_text=True,
+)
+
+    with ProgressBar(minimum=1):
+     # TODO: would it be faster for A* to be computed with it loaded?
+        model.da_data = model.da_data.compute()
     if save:
-        fdate = model.da_data.time.dt.strftime("%Y%m%d%H").values
-        ddate = model.da_data.time.dt.strftime("%Y_%m_%d").values
+        fdate = "2025111500"
+        ddate = "2025_11_15"
         fname_zi = model.z_interpolated_data.attrs["fname"]
         fname_da = model.da_data.attrs["fname"]
 
         full_fname_zi = generate_data_filename(mission_name, fdate, fname_zi)
         full_fname_da = generate_data_filename(mission_name, fdate, fname_da)
 
-        # save_data(model.z_interpolated_data, full_fname_zi, ddate)
+        #save_data(model.z_interpolated_data, full_fname_zi, ddate)
         save_data(model.da_data, full_fname_da, ddate)
 
     print("Processing Done.")
@@ -679,6 +735,9 @@ def process_individual_model(
 
     # pathfinding
     if pathfinding:
+        ds=model.da_data
+        u_perp_array=ds['track_cross'].values
+        lambda_weight=10
         model.waypoints = waypoints
         model.optimal_path = compute_a_star_path(
             waypoints,
@@ -686,7 +745,72 @@ def process_individual_model(
             heuristic,
             glider_speed,
             mission_name,
+            u_perp_array=u_perp_array,
+            lambda_weight=lambda_weight,
         )
     else:
         model.waypoints = None
         model.optimal_path = None
+# connection point 1 of drift 
+    if getattr(model,'optimal_path',None) is not None:
+
+        path_lat=np.array([p[0] for p in model.optimal_path])
+        path_lon=np.array([p[1] for p in model.optimal_path])
+        print ('first few points') # print test
+        for j in range (min(3,len(path_lon))):
+            print (j,path_lon[j],path_lat[j])
+        drift_records=[]
+        cumul_drift=0.0 # dist in km
+    
+        for i in range(len(path_lon)-1):
+            lonA,latA=float(path_lon[i]), float(path_lat[i])
+            lonB,latB=float(path_lon[i+1]),float(path_lat[i+1])
+
+            T_hours, drift_km,u_par_mid,u_perp_mid, R=estimate_segment_drift(
+                lonA,latA,lonB,latB,
+                model.track_along,
+                model.track_cross,
+                glider_speed,
+            )
+            #cumul_drift+=drift_km if np.isfinite(drift_km) else 0.0
+            if np.isfinite(drift_km):
+                cumul_drift+=drift_km
+
+            lon_mid=0.5*(lonA+lonB)
+            lat_mid=0.5*(latA+latB)
+
+            drift_records.append(
+                {
+                    'seg_index': i,
+                    'lon_mid': lon_mid,
+                    'lat_mid': lat_mid,
+                    'T_hours': T_hours,
+                    'drift_km': drift_km,
+                    'u_perp_mps':u_perp_mid,
+                    'u_par_mps': u_par_mid,
+                    'cumul_drift_km': cumul_drift,
+                    'R': R,
+                
+                }
+            )
+
+        print("Phase 2 drift: segments =", len(drift_records))
+        model.drift_records = drift_records
+        out_dir='products/2025_08_08_pathfinding_output_data'
+        os.makedirs(out_dir,exist_ok=True)
+
+        drift_df=pd.DataFrame(drift_records)
+        drift_csv_path=os.path.join(
+            out_dir,
+            f'{mission_name}_drift_summary.csv',
+        )
+
+        drift_df.to_csv(drift_csv_path,index=False)
+        print(f'[DRIFT] Saved drift summary to {drift_csv_path}')
+    
+    else:
+        print("DEBUG: no optimal_path, skipping drift")
+    return model
+
+
+ 

@@ -112,7 +112,7 @@ class CMEMS:
         )
 
         self.subset_data.attrs["fname"] = (
-            f"{self.subset_data.attrs["model_name"]}_subset"
+            f"{self.subset_data.attrs['model_name']}_subset"
         )
 
         self.subset_data = self.subset_data.chunk("auto")
@@ -214,7 +214,7 @@ class ESPC:
         )
 
         self.subset_data.attrs["fname"] = (
-            f"{self.subset_data.attrs["model_name"]}_subset"
+            f"{self.subset_data.attrs['model_name']}_subset"
         )
 
         self.subset_data = self.subset_data.chunk("auto")
@@ -394,7 +394,7 @@ class RTOFS:
         )
 
         self.subset_data.attrs["fname"] = (
-            f"{self.subset_data.attrs["model_name"]}_subset"
+            f"{self.subset_data.attrs['model_name']}_subset"
         )
 
         self.subset_data = self.subset_data.chunk("auto")

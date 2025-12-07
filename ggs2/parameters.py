@@ -224,7 +224,7 @@ def ticket_report(params: dict) -> None:
         "Algorithm": params["algorithm"],
         "Heuristic": params["heuristic"],
         "Waypoints": waypoints,
-        "Glider Raw Speed": f"{params["glider_speed"]} m/s",
+        "Glider Raw Speed": f"{params['glider_speed']} m/s",
         "Save Data": params["save_data"],
         "Individual Plots": params["individual_plots"],
         "Contours": ", ".join(contour_dict[plot] for plot in params["contours"]),

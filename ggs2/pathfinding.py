@@ -5,6 +5,7 @@ import csv
 import heapq
 from math import radians, cos, sin, asin, sqrt
 import os
+import pandas as pd 
 
 import numpy as np
 import simplekml
@@ -37,6 +38,8 @@ def compute_a_star_path(
     glider_raw_speed: float,
     mission_name: str = None,
     heuristic_weight: float = 1.0,
+    u_perp_array:np.ndarray|None=None,
+    lambda_weight:float=0.0,
 ) -> list:
     """
     Calculates the optimal path between waypoints for a mission, considering the impact of ocean currents and distance.
@@ -220,8 +223,6 @@ def compute_a_star_path(
                 1D array of latitude values.
             lon_array (np.ndarray)
                 1D array of longitude values.
-            ds (xr.Dataset)
-                xarray dataset containing current data.
             glider_raw_speed (float)
                 The glider's base speed in meters per second.
 
@@ -247,6 +248,7 @@ def compute_a_star_path(
             goal_lon,
             glider_raw_speed,
         )
+# trying new block, test 1
 
         if net_speed is None or net_speed <= 0:
             return base_heuristic / glider_raw_speed
@@ -370,6 +372,8 @@ def compute_a_star_path(
         lat_array: np.ndarray,
         lon_array: np.ndarray,
         glider_raw_speed: float,
+        u_perp_array:np.ndarray | None=None,
+        lambda_weight: float=0.0,
     ) -> tuple:
         """
         Calculates the time and distance of moving from one grid point to the next, considering ocean currents.
@@ -398,7 +402,7 @@ def compute_a_star_path(
         """
 
         # Get the coordinates of the start and end points
-        start_lat, start_lon = grid_to_coord(*start_index, lat_array, lon_array)
+        start_lat, start_lon = grid_to_coord(*start_index, lat_array, lon_array) #converts grid indices to lat/lon
         end_lat, end_lon = grid_to_coord(*end_index, lat_array, lon_array)
 
         # If the start and end points are the same, return a time of 0 and a distance of 0
@@ -406,7 +410,7 @@ def compute_a_star_path(
             return 0, 0
 
         # Calculate the distance between the start and end points
-        distance = haversine_distance(start_lat, start_lon, end_lat, end_lon)
+        distance = haversine_distance(start_lat, start_lon, end_lat, end_lon) # in meters
 
         # Calculate the effective speed from the start point to the end point
         net_speed = compute_effective_speed(
@@ -426,8 +430,19 @@ def compute_a_star_path(
             time = distance / glider_raw_speed
         else:
             time = distance / net_speed
+            #addition 
+        cross_penalty=0.0
+        if u_perp_array is not None and lambda_weight>0.0:
+            i,j=start_index
+            u_perp=u_perp_array[i,j]
+            cross_drift=abs(u_perp)*time
+            cross_penalty=lambda_weight*cross_drift
+        if cross_penalty!=0 and np.random.rand()<1e-4:
+            print('penalty sample:',time,u_perp,cross_drift,cross_penalty)
+        movement_cost=time+cross_penalty
 
-        return time, distance
+
+        return movement_cost, distance
 
     # Movement cost function
     def calculate_heuristic_cost(
@@ -475,7 +490,7 @@ def compute_a_star_path(
                 lat_array,
                 lon_array,
                 glider_raw_speed,
-            )
+            )   
         elif heuristic == "haversine":
             return haversine_distance(inst_lat, inst_lon, goal_lat, goal_lon)
         else:
@@ -495,6 +510,8 @@ def compute_a_star_path(
         glider_raw_speed: float,
         heuristic: str,
         heuristic_weight: float = 1.0,
+        u_perp_array:np.ndarray |None=None,
+        lambda_weight:float=0.0,
     ) -> tuple[list[tuple[float, float]], float, float, list[float], list[float]]:
         """
         A* pathfinding algorithm optimized for glider missions with ocean current-aware cost and heuristics.
@@ -580,7 +597,7 @@ def compute_a_star_path(
                     segment_times,
                     segment_distances,
                 )
-
+## come back to this
             for neighbor in generate_neighbors(current, lat_array, lon_array, ds):
                 if neighbor in visited:
                     continue
@@ -593,6 +610,8 @@ def compute_a_star_path(
                     lat_array,
                     lon_array,
                     glider_raw_speed,
+                    u_perp_array=u_perp_array,
+                    lambda_weight=lambda_weight,
                 )
                 tentative_g_score = g_score[current] + movement_cost
 
@@ -632,8 +651,8 @@ def compute_a_star_path(
     ds = model.da_data
     text_name = ds.attrs["text_name"]
     model_name = ds.attrs["model_name"]
-    ddate = ds.time.dt.strftime("%m-%d-%Y %H:%M").values
-    fdate = ds.time.dt.strftime("%Y%m%d%H").values
+    ddate = ("2025-08-02") #.values # removed ds.time.dt.strftime
+    fdate = ("20250802") #.values # removed ds.time.dt.strftime
 
     # Ensure the presence of the land mask
     ds = ensure_land_mask(ds)
@@ -647,6 +666,8 @@ def compute_a_star_path(
             "Segment End",
             "Segment Time (s)",
             "Segment Distance (m)",
+            "Glider Net Speed(m/s)",
+
         )
     ]
 
@@ -704,6 +725,8 @@ def compute_a_star_path(
             glider_raw_speed,
             heuristic,
             heuristic_weight,
+            u_perp_array=u_perp_array,
+            lambda_weight=lambda_weight,
         )
         # Extend the optimal mission path with the current segment path (excluding the last point)
         optimal_mission_path.extend(segment_path[:-1])
@@ -747,7 +770,7 @@ def compute_a_star_path(
     print(f"Total mission distance: {total_distance/1000} kilometers")
 
     # Ensure output directory exists
-    dir = f"products/{ds.time.dt.strftime('%Y_%m_%d').values}/data"
+    dir = "products/2025_08_08_pathfinding_output/data" # name of directory saved to
     os.makedirs(dir, exist_ok=True)
 
     # Define the path for the path CSV file
@@ -778,7 +801,26 @@ def compute_a_star_path(
     with open(csv_file_path, "w", newline="") as file:
         writer = csv.writer(file)
         writer.writerows(csv_data)
-
+# good luck to the next guy, this was a PIA
+    """ if hasattr(model,'drift_records') and model.drift_records:
+        print("DEBUG: about to write drift_summary CSV")
+        print('DEBUG: hasattr=',hasattr(model,'drift_records'))
+        print('DEBUG:len(drift_records)=',
+              len(getattr(model,'drift_records',[])))
+        drift_df=pd.DataFrame(model.drift_records)
+        drift_csv_path=os.path.join(
+            dir,
+            f'{mission_name}_{fdate}_{model_name}_drift_summary_csv',        
+        )
+        drift_df.to_csv(drift_csv_path,index=False)
+        print(f'Saved drift summary to {drift_csv_path}')
+    else:
+        print("DEBUG: drift writer skipped")
+        print("DEBUG: hasattr =", hasattr(model, 'drift_records'))
+        print("DEBUG: len(getattr(...)) =",
+          len(getattr(model, 'drift_records', []))
+          if hasattr(model, 'drift_records') else "N/A") """
+        
     print("Done.")
     endtime = print_endtime()
     print_runtime(starttime, endtime)
