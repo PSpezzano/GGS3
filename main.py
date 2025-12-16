@@ -1,4 +1,5 @@
 # author: matthew learn (matt.learn@marine.rutgers.edu)
+# Adapted by Patrick Spezzano (patrick.spezzano@marine.rutgers.edu)
 import argparse
 
 import ggs2.util as util
@@ -122,7 +123,7 @@ def main():
     endtime = util.print_endtime()
     print("Script complete.")
     util.print_runtime(starttime, endtime)
-    print("Thank you for using Glider Guidance System 2.")
+    print("Thank you for using Glider Guidance System 3.")
 
 
 if __name__ == "__main__":

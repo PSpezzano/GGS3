@@ -737,7 +737,7 @@ def process_individual_model(
     if pathfinding:
         ds=model.da_data
         u_perp_array=ds['track_cross'].values
-        lambda_weight=10
+        lambda_weight=5
         model.waypoints = waypoints
         model.optimal_path = compute_a_star_path(
             waypoints,
