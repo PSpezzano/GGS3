@@ -754,6 +754,46 @@ def process_individual_model(
     else:
         model.surface_data = model.subset_data
 
+    if drift_only:
+        if not waypoints:
+            raise ValueError("drift_only=True requires at least one waypoint as a start.")
+        print("[DRIFT] Drift-only mode: skipping depth-average/pathfinding.")
+        start_lat, start_lon = waypoints[0]
+        drift_track = forward_propagate_drift(
+            model.surface_data,
+            start_lat=start_lat,
+            start_lon=start_lon,
+            total_hours=24 * 30,
+            dt_seconds=3600.0,
+            vehicle_speed_mps=0.0,
+        )
+
+        drift_df = pd.DataFrame(drift_track)
+        out_dir = os.path.join("products", "drift_only")
+        os.makedirs(out_dir, exist_ok=True)
+        track_csv_path = os.path.join(
+            out_dir, f"{mission_name}_{model.name}_drift_track.csv"
+        )
+        drift_df.to_csv(track_csv_path, index=False)
+        print(f"[DRIFT] Saved drift track to {track_csv_path}")
+
+        targets = [24, 24 * 7, 24 * 30]
+        endpoint_rows = []
+        for target in targets:
+            idx = (drift_df["time_hours"] - target).abs().idxmin()
+            row = drift_df.loc[idx, ["time_hours", "lat", "lon"]].to_dict()
+            endpoint_rows.append(row)
+        endpoints_df = pd.DataFrame(endpoint_rows)
+        endpoints_csv_path = os.path.join(
+            out_dir, f"{mission_name}_{model.name}_drift_endpoints.csv"
+        )
+        endpoints_df.to_csv(endpoints_csv_path, index=False)
+        print(f"[DRIFT] Saved drift endpoints to {endpoints_csv_path}")
+
+        model.waypoints = [waypoints[0]]
+        model.optimal_path = None
+        return model
+
     # interpolate depth
     model.z_interpolated_data = interpolate_depth(model, depth, diag_text=False)
     with ProgressBar(minimum=1):
@@ -798,46 +838,8 @@ def process_individual_model(
     print_runtime(starttime, endtime)
 
     # drift-only forward propagation
-    if drift_only:
-        if not waypoints:
-            raise ValueError("drift_only=True requires at least one waypoint as a start.")
-
-        start_lat, start_lon = waypoints[0]
-        drift_track = forward_propagate_drift(
-            model.surface_data,
-            start_lat=start_lat,
-            start_lon=start_lon,
-            total_hours=24 * 30,
-            dt_seconds=3600.0,
-            vehicle_speed_mps=0.0,
-        )
-
-        drift_df = pd.DataFrame(drift_track)
-        out_dir = os.path.join("products", "drift_only")
-        os.makedirs(out_dir, exist_ok=True)
-        track_csv_path = os.path.join(
-            out_dir, f"{mission_name}_{model.name}_drift_track.csv"
-        )
-        drift_df.to_csv(track_csv_path, index=False)
-        print(f"[DRIFT] Saved drift track to {track_csv_path}")
-
-        targets = [24, 24 * 7, 24 * 30]
-        endpoint_rows = []
-        for target in targets:
-            idx = (drift_df["time_hours"] - target).abs().idxmin()
-            row = drift_df.loc[idx, ["time_hours", "lat", "lon"]].to_dict()
-            endpoint_rows.append(row)
-        endpoints_df = pd.DataFrame(endpoint_rows)
-        endpoints_csv_path = os.path.join(
-            out_dir, f"{mission_name}_{model.name}_drift_endpoints.csv"
-        )
-        endpoints_df.to_csv(endpoints_csv_path, index=False)
-        print(f"[DRIFT] Saved drift endpoints to {endpoints_csv_path}")
-
-        model.waypoints = [waypoints[0]]
-        model.optimal_path = None
     # pathfinding
-    elif pathfinding:
+    if pathfinding:
         ds=model.da_data
         u_perp_array=ds['track_cross'].values
         lambda_weight=5
