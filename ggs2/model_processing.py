@@ -746,11 +746,14 @@ def process_individual_model(
             time=("time", [np.datetime64(dates[0])])
         )
     model.subset_data = regrid_ds(model.subset_data, common_grid, diag_text=False)
-    model.surface_data = (
-        model.subset_data.sel(depth=0, method="nearest")
-        .squeeze("depth", drop=True)
-        .drop_vars("depth", errors="ignore")
-    )
+    if "depth" in model.subset_data.dims:
+        model.surface_data = (
+            model.subset_data.sel(depth=0, method="nearest")
+            .squeeze("depth", drop=True)
+            .drop_vars("depth", errors="ignore")
+        )
+    else:
+        model.surface_data = model.subset_data
 
     # interpolate depth
     model.z_interpolated_data = interpolate_depth(model, depth, diag_text=False)
