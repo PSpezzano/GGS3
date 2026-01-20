@@ -24,6 +24,8 @@ from .models import CMEMS, ESPC
 from .pathfinding import *
 from .drift import estimate_segment_drift
 
+EARTH_RADIUS_M = 6371000.0
+
 """
 Section 1: Individual Model Processing Functions
 """
@@ -267,6 +269,60 @@ def calculate_heading(model: object, diag_text: bool = False) -> xr.Dataset:
         print("Done.")
 
     return data
+
+
+def _interp_uv_at(ds: xr.Dataset, lat: float, lon: float) -> tuple[float, float]:
+    u_val = ds["u"].interp(lat=lat, lon=lon, method="nearest").values
+    v_val = ds["v"].interp(lat=lat, lon=lon, method="nearest").values
+    return float(u_val), float(v_val)
+
+
+def forward_propagate_drift(
+    ds: xr.Dataset,
+    start_lat: float,
+    start_lon: float,
+    total_hours: float,
+    dt_seconds: float = 3600.0,
+    vehicle_speed_mps: float = 0.0,
+) -> list[dict]:
+    """
+    Forward propagates a drift track using the surface currents at each step.
+    """
+    if vehicle_speed_mps != 0.0:
+        print("[DRIFT] vehicle_speed_mps is forced to 0.0 in drift-only mode.")
+
+    track = []
+    lat = float(start_lat)
+    lon = float(start_lon)
+    total_seconds = total_hours * 3600.0
+    steps = int(np.ceil(total_seconds / dt_seconds))
+
+    for step in range(steps + 1):
+        time_hours = step * dt_seconds / 3600.0
+        u_mps, v_mps = _interp_uv_at(ds, lat, lon)
+        if not np.isfinite(u_mps) or not np.isfinite(v_mps):
+            print("[DRIFT] Encountered invalid current data; stopping propagation.")
+            break
+        track.append(
+            {
+                "time_hours": time_hours,
+                "lat": lat,
+                "lon": lon,
+                "u_mps": u_mps,
+                "v_mps": v_mps,
+            }
+        )
+
+        if step == steps:
+            break
+
+        lat_rad = np.deg2rad(lat)
+        dlat = (v_mps * dt_seconds) / EARTH_RADIUS_M
+        dlon = (u_mps * dt_seconds) / (EARTH_RADIUS_M * np.cos(lat_rad))
+        lat += np.rad2deg(dlat)
+        lon += np.rad2deg(dlon)
+
+    return track
 
 
 """
@@ -646,6 +702,7 @@ def process_individual_model(
     depth: int,
     single_date: bool = True,
     pathfinding: bool = False,
+    drift_only: bool = False,
     heuristic: str = None,
     waypoints: list[tuple[float, float]] = None,
     glider_speed: float = None,
@@ -689,6 +746,11 @@ def process_individual_model(
             time=("time", [np.datetime64(dates[0])])
         )
     model.subset_data = regrid_ds(model.subset_data, common_grid, diag_text=False)
+    model.surface_data = (
+        model.subset_data.sel(depth=0, method="nearest")
+        .squeeze("depth", drop=True)
+        .drop_vars("depth", errors="ignore")
+    )
 
     # interpolate depth
     model.z_interpolated_data = interpolate_depth(model, depth, diag_text=False)
@@ -733,8 +795,47 @@ def process_individual_model(
     endtime = print_endtime()
     print_runtime(starttime, endtime)
 
+    # drift-only forward propagation
+    if drift_only:
+        if not waypoints:
+            raise ValueError("drift_only=True requires at least one waypoint as a start.")
+
+        start_lat, start_lon = waypoints[0]
+        drift_track = forward_propagate_drift(
+            model.surface_data,
+            start_lat=start_lat,
+            start_lon=start_lon,
+            total_hours=24 * 30,
+            dt_seconds=3600.0,
+            vehicle_speed_mps=0.0,
+        )
+
+        drift_df = pd.DataFrame(drift_track)
+        out_dir = os.path.join("products", "drift_only")
+        os.makedirs(out_dir, exist_ok=True)
+        track_csv_path = os.path.join(
+            out_dir, f"{mission_name}_{model.name}_drift_track.csv"
+        )
+        drift_df.to_csv(track_csv_path, index=False)
+        print(f"[DRIFT] Saved drift track to {track_csv_path}")
+
+        targets = [24, 24 * 7, 24 * 30]
+        endpoint_rows = []
+        for target in targets:
+            idx = (drift_df["time_hours"] - target).abs().idxmin()
+            row = drift_df.loc[idx, ["time_hours", "lat", "lon"]].to_dict()
+            endpoint_rows.append(row)
+        endpoints_df = pd.DataFrame(endpoint_rows)
+        endpoints_csv_path = os.path.join(
+            out_dir, f"{mission_name}_{model.name}_drift_endpoints.csv"
+        )
+        endpoints_df.to_csv(endpoints_csv_path, index=False)
+        print(f"[DRIFT] Saved drift endpoints to {endpoints_csv_path}")
+
+        model.waypoints = [waypoints[0]]
+        model.optimal_path = None
     # pathfinding
-    if pathfinding:
+    elif pathfinding:
         ds=model.da_data
         u_perp_array=ds['track_cross'].values
         lambda_weight=5

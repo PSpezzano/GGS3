@@ -176,6 +176,7 @@ def initialize_parameters(config: dict) -> dict:
     # pathfinding
     pathfinding_params = config["PATHFINDING"]
     params["pathfinding"] = pathfinding_params["ENABLE"]
+    params["drift_only"] = pathfinding_params.get("DRIFT_ONLY", False)
     params["algorithm"] = pathfinding_params["ALGORITHM"]
     params["heuristic"] = pathfinding_params["HEURISTIC"]
     params["waypoints"] = [(wp[0], wp[1]) for wp in pathfinding_params["WAYPOINTS"]]
@@ -221,6 +222,7 @@ def ticket_report(params: dict) -> None:
         "Depth": params["depth"],
         "Models": ", ".join([model.name for model in params["models"]]),
         "Pathfinding": params["pathfinding"],
+        "Drift Only": params["drift_only"],
         "Algorithm": params["algorithm"],
         "Heuristic": params["heuristic"],
         "Waypoints": waypoints,

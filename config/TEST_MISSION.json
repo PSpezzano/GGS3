@@ -18,8 +18,8 @@
         "MAX_DEPTH": 1000
     },
     "MODELS": {
-        "CMEMS": false,
-        "ESPC": true,
+        "CMEMS": true,
+        "ESPC": false,
         "RTOFS_EAST": false,
         "RTOFS_WEST": false,
         "RTOFS_PARALLEL": false
