@@ -747,11 +747,10 @@ def process_individual_model(
         )
     model.subset_data = regrid_ds(model.subset_data, common_grid, diag_text=False)
     if "depth" in model.subset_data.dims:
-        model.surface_data = (
-            model.subset_data.sel(depth=0, method="nearest")
-            .squeeze("depth", drop=True)
-            .drop_vars("depth", errors="ignore")
-        )
+        surface = model.subset_data.isel(depth=0)
+        if "depth" in surface.dims:
+            surface = surface.drop_dims("depth")
+        model.surface_data = surface.drop_vars("depth", errors="ignore")
     else:
         model.surface_data = model.subset_data
 
