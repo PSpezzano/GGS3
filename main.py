@@ -54,6 +54,7 @@ def main():
             parameters["depth"],
             parameters["single_date"],
             parameters["pathfinding"],
+            parameters["drift_only"],
             parameters["heuristic"],
             parameters["waypoints"],
             parameters["glider_speed"],

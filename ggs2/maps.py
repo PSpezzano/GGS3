@@ -538,7 +538,7 @@ def populate_map(
     if contour_type == "magnitude":
         plot_title = "Depth Averaged Current Speed"
         label = r"Current Speed ($\mathregular{ms^{-1}}$)"
-        levels = np.linspace(0, 1, 5) ## adjusting the intervals on cbar (0,0.9,10)
+        levels = np.linspace(0, .9, 10) ## adjusting the intervals on cbar (0,0.9,10)
 
         contourf = ax.contourf(
             lon2D,
