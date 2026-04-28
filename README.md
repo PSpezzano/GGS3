@@ -20,6 +20,8 @@ GGS3 is a program inteded to assist in Slocum Glider flight planning by creating
 
 GGS3 loads ocean current model data into memory, subsets, regrid to a common grid, interpolated over depth to uniform one meter resolution intervals, and averaged over depth. The depth averaged data is fed into an A* search algorithm along with a set of waypoints to compute the most time-optimal path between waypoints, taking into account the impact of the depth averaged currents. Results are visualized as figures.
 
+Options to toggle between active piloting routing and surface drifting.
+
 ### Data Description
 
 GGS3 utilizes ocean current forecast data from three ocean current models:
