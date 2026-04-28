@@ -1,4 +1,4 @@
-# Glider Guidance System 2
+# Glider Guidance System 3
 
       /\\\\\\\\\\\\      /\\\\\\\\\\\\      /\\\\\\\\\\\       /\\\\\\\\\         
      /\\\//////////     /\\\//////////     /\\\/////////\\\   /\\\///////\\\
@@ -10,22 +10,19 @@
          \//\\\\\\\\\\\\/   \//\\\\\\\\\\\\/   \///\\\\\\\\\\\/     /\\\\\\\\\\\\\\\
            \////////////      \////////////       \///////////      \///////////////
 
-Last updated for v1.2.2
-
-__NOTE:__ Model calls are now outdated. See ./ggs2/models.py to update model calls!!!
 
 ## Overview and Purpose
 
-This README will cover the installation of the Glider Guidance System 2 (GGS2) and all of its dependencies. For documentation on the use of the GGS2, refer to `_docs/GGS2_Tutorial.md`.
-GGS2 is a program inteded to assist in Slocum Glider flight planning by creating depth averaged current visualizations of various global ocean models. It additionally assists in flight planning by computing the time-optimal route between a set of user-defined waypoints.
+This README will cover the installation of the Glider Guidance System 3 (GGS3) and all of its dependencies. For documentation on the use of the GGS3, refer to `_docs/GGS3_Tutorial.md`.
+GGS3 is a program inteded to assist in Slocum Glider flight planning by creating depth averaged current visualizations of various global ocean models. It additionally assists in flight planning by computing the time-optimal route between a set of user-defined waypoints.
 
 ### Program Description
 
-GGS2 loads ocean current model data into memory, subsets, regrid to a common grid, interpolated over depth to uniform one meter resolution intervals, and averaged over depth. The depth averaged data is fed into an A* search algorithm along with a set of waypoints to compute the most time-optimal path between waypoints, taking into accoun the impact of the depth averaged currents. Results are visualized as figures.
+GGS3 loads ocean current model data into memory, subsets, regrid to a common grid, interpolated over depth to uniform one meter resolution intervals, and averaged over depth. The depth averaged data is fed into an A* search algorithm along with a set of waypoints to compute the most time-optimal path between waypoints, taking into account the impact of the depth averaged currents. Results are visualized as figures.
 
 ### Data Description
 
-GGS2 utilizes ocean current forecast data from three ocean current models:
+GGS3 utilizes ocean current forecast data from three ocean current models:
 
 - __Copernicus Marine Environmental Service (CMEMS)__ - Funded by the European Union and Mercator Ocean International. Uses the Global Ocean Physics Reanalysis (GLORYS) product.
 - __Earth System Prediction Capability (ESPC)__ - Based on 1/12° HYbrid Coordinates Ocean Model (HYCOM) unded by the United States Navy.
@@ -41,7 +38,7 @@ GGS2 utilizes ocean current forecast data from three ocean current models:
 
 ### Python Requirements
 
-An environment that includes all requirements to run the GGS2 can be found by running `ggs2.yml` in any Anaconda powershell terminal through the following line: `conda env create -f ggs2.yml`.
+An environment that includes all requirements to run the GGS2 can be found by running `ggs3.yml` in any Anaconda powershell terminal through the following line: `conda env create -f ggs3.yml`.
 
 If instead the user wishes to create their own environment manually, run `conda create -n env_name` and `conda activate env_name`, replacing `env_name` with a name of their choice. Then, using the command `conda install -c conda-forge package`, replacing `package` with the name of the module/package/library, must be run to install the following:
 
