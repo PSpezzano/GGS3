@@ -1,0 +1,20 @@
+﻿name: ggs3
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - cartopy
+  - cmocean
+  - copernicusmarine
+  - jupyterlab
+  - matplotlib
+  - numpy
+  - pandas
+  - python
+  - seaborn
+  - simplekml
+  - xarray
+  - esmpy
+  - xesmf
+  - cool_maps
+prefix: C:\Users\matth\miniconda3\envs\ggs2
